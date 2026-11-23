@@ -1,0 +1,23 @@
+services:
+  hawk-mcp:
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      HAWK_API_URL: ${HAWK_API_URL:-https://api.hawk.so/graphql}
+      HAWK_MCP_HTTP_AUTH_TOKEN: ${HAWK_MCP_HTTP_AUTH_TOKEN:?Set HAWK_MCP_HTTP_AUTH_TOKEN in .env}
+      HAWK_MCP_SESSION_STORE_PATH: /data/session.json
+    volumes:
+      - hawk-mcp-session:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  hawk-mcp-session:

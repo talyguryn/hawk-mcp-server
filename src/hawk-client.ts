@@ -1,0 +1,184 @@
+import { ClientError, GraphQLClient, gql } from "graphql-request";
+
+import { HAWK_API_URL } from "./config.js";
+import { SessionStore, type HawkTokens } from "./session-store.js";
+
+export class ReauthenticationRequiredError extends Error {
+  constructor(message = "Hawk session has expired. Run the login tool again.") {
+    super(message);
+    this.name = "ReauthenticationRequiredError";
+  }
+}
+
+export function createClient(accessToken?: string): GraphQLClient {
+  return new GraphQLClient(HAWK_API_URL, {
+    headers: accessToken
+      ? {
+          Authorization: `Bearer ${accessToken}`,
+        }
+      : {},
+  });
+}
+
+export function isRefreshableAuthenticationError(error: unknown): boolean {
+  if (!(error instanceof ClientError)) {
+    return false;
+  }
+
+  if (error.response.status === 401) {
+    return true;
+  }
+
+  return (error.response.errors ?? []).some((graphqlError) => {
+    const message = graphqlError.message.toLowerCase();
+    const code = String(
+      (graphqlError.extensions as { code?: unknown } | undefined)?.code ?? "",
+    ).toUpperCase();
+
+    return (
+      code === "UNAUTHENTICATED" ||
+      message.includes("jwt") ||
+      message.includes("token expired") ||
+      message.includes("access token expired") ||
+      message.includes("refresh your token") ||
+      message.includes("refresh your tokens") ||
+      message.includes("tokens have expired") ||
+      message.includes("session expired") ||
+      message.includes("invalid token") ||
+      message.includes("unauthenticated")
+    );
+  });
+}
+
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  if (!(error instanceof ClientError)) {
+    return false;
+  }
+
+  return (
+    error.response.status === 401 ||
+    isRefreshableAuthenticationError(error) ||
+    (error.response.errors ?? []).some((graphqlError) => {
+      const message = graphqlError.message.toLowerCase();
+
+      return (
+        message.includes("invalid refresh token") ||
+        message.includes("refresh token expired") ||
+        message.includes("refresh token is invalid") ||
+        message.includes("refresh token revoked") ||
+        message.includes("session expired")
+      );
+    })
+  );
+}
+
+export function formatUnknownError(error: unknown): string {
+  if (error instanceof ReauthenticationRequiredError) {
+    return error.message;
+  }
+
+  if (error instanceof ClientError) {
+    const graphqlMessages = error.response.errors
+      ?.map((item) => item.message)
+      .filter(Boolean);
+
+    if (graphqlMessages?.length) {
+      return `Hawk GraphQL error: ${graphqlMessages.join("; ")}`;
+    }
+
+    return `Hawk request failed with HTTP status ${error.response.status}.`;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unknown error while communicating with Hawk.";
+}
+
+export function createAuthenticatedRequester(sessionStore: SessionStore) {
+  let refreshInProgress: Promise<HawkTokens> | null = null;
+
+  const refreshSession = (expiredSession: HawkTokens): Promise<HawkTokens> => {
+    if (refreshInProgress) {
+      return refreshInProgress;
+    }
+
+    refreshInProgress = (async () => {
+      const latestSession = await sessionStore.read();
+
+      // Another request may have refreshed the rotating token pair while this
+      // request was in flight.
+      if (
+        latestSession &&
+        latestSession.accessToken !== expiredSession.accessToken
+      ) {
+        return latestSession;
+      }
+
+      const refreshResult = await createClient().request<{
+        refreshTokens: HawkTokens;
+      }>(
+        gql`
+          mutation RefreshTokens($refreshToken: String!) {
+            refreshTokens(refreshToken: $refreshToken) {
+              accessToken
+              refreshToken
+            }
+          }
+        `,
+        { refreshToken: expiredSession.refreshToken },
+      );
+
+      await sessionStore.write(refreshResult.refreshTokens);
+      return refreshResult.refreshTokens;
+    })().finally(() => {
+      refreshInProgress = null;
+    });
+
+    return refreshInProgress;
+  };
+
+  return async function requestAuthenticated<T>(
+    document: string,
+    variables?: Record<string, unknown>,
+  ): Promise<T> {
+    const session = await sessionStore.read();
+
+    if (!session) {
+      throw new ReauthenticationRequiredError(
+        "No saved Hawk session. Run the login tool first.",
+      );
+    }
+
+    try {
+      return await createClient(session.accessToken).request<T>(
+        document,
+        variables,
+      );
+    } catch (originalError) {
+      if (!isRefreshableAuthenticationError(originalError)) {
+        throw originalError;
+      }
+
+      try {
+        const refreshedTokens = await refreshSession(session);
+
+        return createClient(refreshedTokens.accessToken).request<T>(
+          document,
+          variables,
+        );
+      } catch (refreshError) {
+        if (isInvalidRefreshTokenError(refreshError)) {
+          await sessionStore.clear();
+
+          throw new ReauthenticationRequiredError(
+            "Hawk refresh token is invalid or expired. Run the login tool again.",
+          );
+        }
+
+        throw refreshError;
+      }
+    }
+  };
+}

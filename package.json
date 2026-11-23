@@ -1,0 +1,42 @@
+{
+  "name": "hawk-mcp-server",
+  "version": "0.3.0",
+  "description": "Read-only Model Context Protocol server for exploring Hawk projects and events",
+  "main": "dist/hawk.js",
+  "bin": {
+    "hawk-mcp-server": "dist/hawk.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/postbuild.mjs",
+    "prepack": "npm run build",
+    "start": "node dist/hawk.js",
+    "test": "npm run build && node --test test/*.test.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "keywords": [
+    "hawk",
+    "mcp",
+    "model-context-protocol",
+    "observability",
+    "errors"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastmcp": "^4.28.4",
+    "graphql-request": "^7.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}
