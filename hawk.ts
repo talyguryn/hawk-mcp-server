@@ -557,7 +557,7 @@ server.addTool({
 server.addTool({
   name: "get_project_details",
   description:
-    "Get project profile, unread count, rate limits, grouping patterns, task-manager state, notification rules, and creator. The project integration token is excluded.",
+    "Get project profile, unread count, rate limits, grouping patterns, task-manager state, and notification rules. The project integration token is excluded. Creator details are omitted because Hawk currently exposes a broken uidAdded resolver.",
   parameters: z.object({
     projectId: z.string(),
   }),
@@ -573,7 +573,6 @@ server.addTool({
           uri: string | null;
           image: string | null;
           unreadCount: number;
-          uidAdded: { id: string; name: string | null; email: string | null };
           rateLimitSettings: { N: number; T: number } | null;
           eventGroupingPatterns: Array<{ id: string; pattern: string }> | null;
           notifications: Array<{
@@ -615,11 +614,6 @@ server.addTool({
               uri
               image
               unreadCount
-              uidAdded {
-                id
-                name
-                email
-              }
               rateLimitSettings {
                 N
                 T

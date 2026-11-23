@@ -1,6 +1,6 @@
 import { ClientError, GraphQLClient, gql } from "graphql-request";
 
-import { HAWK_API_URL } from "./config.js";
+import { HAWK_API_URL, HAWK_REQUEST_TIMEOUT_MS } from "./config.js";
 import { SessionStore, type HawkTokens } from "./session-store.js";
 
 export class ReauthenticationRequiredError extends Error {
@@ -11,7 +11,15 @@ export class ReauthenticationRequiredError extends Error {
 }
 
 export function createClient(accessToken?: string): GraphQLClient {
+  if (
+    !Number.isInteger(HAWK_REQUEST_TIMEOUT_MS) ||
+    HAWK_REQUEST_TIMEOUT_MS < 1
+  ) {
+    throw new Error("HAWK_REQUEST_TIMEOUT_MS must be a positive integer.");
+  }
+
   return new GraphQLClient(HAWK_API_URL, {
+    signal: AbortSignal.timeout(HAWK_REQUEST_TIMEOUT_MS),
     headers: accessToken
       ? {
           Authorization: `Bearer ${accessToken}`,
@@ -93,6 +101,14 @@ export function formatUnknownError(error: unknown): string {
   }
 
   if (error instanceof Error) {
+    if (
+      error.name === "TimeoutError" ||
+      error.name === "AbortError" ||
+      error.message.toLowerCase().includes("timed out")
+    ) {
+      return `Hawk request timed out after ${HAWK_REQUEST_TIMEOUT_MS}ms. The server did not send response headers in time.`;
+    }
+
     return error.message;
   }
 

@@ -20,3 +20,8 @@ export const MCP_PORT = Number.parseInt(
 
 export const MCP_ENDPOINT = process.env.HAWK_MCP_ENDPOINT ?? "/mcp";
 export const MCP_HTTP_AUTH_TOKEN = process.env.HAWK_MCP_HTTP_AUTH_TOKEN;
+
+export const HAWK_REQUEST_TIMEOUT_MS = Number.parseInt(
+  process.env.HAWK_REQUEST_TIMEOUT_MS ?? "15000",
+  10,
+);

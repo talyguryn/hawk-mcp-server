@@ -7,6 +7,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       HAWK_API_URL: ${HAWK_API_URL:-https://api.hawk.so/graphql}
+      HAWK_REQUEST_TIMEOUT_MS: ${HAWK_REQUEST_TIMEOUT_MS:-15000}
       HAWK_MCP_HTTP_AUTH_TOKEN: ${HAWK_MCP_HTTP_AUTH_TOKEN:?Set HAWK_MCP_HTTP_AUTH_TOKEN in .env}
       HAWK_MCP_SESSION_STORE_PATH: /data/session.json
     volumes:

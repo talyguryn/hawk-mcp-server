@@ -147,6 +147,7 @@ outside source control. Use `logout` to remove the local session.
 | --- | --- | --- |
 | `HAWK_API_URL` | `https://api.hawk.so/graphql` | Hawk GraphQL endpoint |
 | `HAWK_MCP_SESSION_STORE_PATH` | `~/.hawk-mcp/session.json` | Local token store |
+| `HAWK_REQUEST_TIMEOUT_MS` | `15000` | Timeout for one Hawk GraphQL request |
 | `HAWK_MCP_TRANSPORT` | `stdio` | Set to `httpStream` for remote MCP |
 | `HAWK_MCP_HOST` | `127.0.0.1` | HTTP bind address |
 | `HAWK_MCP_PORT` | `3000` | HTTP port |
@@ -156,6 +157,18 @@ outside source control. Use `logout` to remove the local session.
 Copy `.env.example` for reference. Node does not load `.env` files
 automatically; export variables in the environment or configure them in the MCP
 client.
+
+Each Hawk request has a 15-second default timeout, so an expired-token sequence
+(initial request, refresh, retry) can finish below a 60-second MCP tool timeout.
+Increase `HAWK_REQUEST_TIMEOUT_MS` only together with the MCP client's
+`toolCallTimeoutMs`.
+
+`Request timed out. Node.js fetch timed out waiting for response headers`
+mentions model/Undici configuration and can also originate in the MCP host before
+the Hawk server responds. If Hawk itself caused the delay, this server now
+returns its own `Hawk request timed out after ...` error first. Configuring the
+Undici `headersTimeout` must be done in the model/MCP client, not in this stdio
+server.
 
 ## Docker Compose deployment
 
@@ -198,6 +211,10 @@ Do not expose it to mutually untrusted users.
 | `list_workspaces` | Accessible workspaces and projects |
 | `get_workspace_details` | Workspace team, plan usage, and projects |
 | `get_project_details` | Project settings, integrations, and unread count |
+
+`get_project_details` intentionally omits `uidAdded`/creator details because the
+current Hawk API stores this field as a raw user ID while exposing it as a
+`User` object, causing GraphQL to fail when nested creator fields are requested.
 | `list_project_events` | Newest original project events with offset pagination |
 | `list_workspace_events` | Newest original events merged across workspace projects |
 | `search_project_errors` | Filtered, grouped project events with cursor pagination |
