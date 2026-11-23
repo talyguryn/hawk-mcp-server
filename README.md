@@ -123,7 +123,11 @@ access and refresh tokens created by the `login` tool.
 After connecting, call `login` with a Hawk email and password. If
 `session_status` returns `requiresLogin: true`, the stored access and refresh
 tokens can no longer authenticate; call `login` again with the Hawk email and
-password. The
+password. The MCP server currently supports no browser-login or OAuth flow.
+Signing in through the Hawk website does not share browser cookies with the MCP
+process and therefore cannot create or refresh its token file. MCP clients
+should not open a browser for authentication; they should collect credentials
+and call the `login` tool directly. The
 `session_status` tool makes a real authenticated request and automatically
 refreshes an expired access token. Access and refresh tokens are not returned by
 the tool. They are stored as local JSON at:
@@ -206,6 +210,22 @@ Do not expose it to mutually untrusted users.
 | `get_event_occurrences` | Paginated repetitions of one grouped event |
 | `get_event_chart` | Daily occurrence series for one grouped event |
 | `get_error_details` | Event metadata, release, repetitions, and optional diagnostics |
+
+## Authentication troubleshooting
+
+Use only the MCP `login` tool with the user's Hawk email and password.
+`session_status` first verifies the saved session and attempts token refresh.
+Its relevant outcomes are:
+
+| Result | Action |
+| --- | --- |
+| `authenticated: true` | Continue using Hawk tools |
+| `authenticated: false`, `requiresLogin: true` | Ask for Hawk email/password and call `login` |
+| `authenticated: false`, `requiresLogin: false` | Retry later; this is usually an API/network failure, not a login request |
+
+Do not try to authenticate in a browser, copy website cookies, or manually copy
+tokens from DevTools. Browser and MCP sessions are separate, and these methods
+are intentionally unsupported.
 
 Grouped searches support date, count, or affected-user sorting. State filters
 default to unresolved, non-ignored events. An empty page only means that there

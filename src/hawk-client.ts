@@ -147,7 +147,7 @@ export function createAuthenticatedRequester(sessionStore: SessionStore) {
 
     if (!session) {
       throw new ReauthenticationRequiredError(
-        "No saved Hawk session. Run the login tool first.",
+        "No saved Hawk session. Ask the user for their Hawk email and password and call the login tool. Do not use browser login.",
       );
     }
 
@@ -173,7 +173,7 @@ export function createAuthenticatedRequester(sessionStore: SessionStore) {
           await sessionStore.clear();
 
           throw new ReauthenticationRequiredError(
-            "Hawk refresh token is invalid or expired. Run the login tool again.",
+            "Hawk refresh token is invalid or expired. Ask the user for their Hawk email and password and call the login tool. Do not use browser login.",
           );
         }
 

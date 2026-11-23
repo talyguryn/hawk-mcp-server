@@ -54,6 +54,10 @@ function json(value: unknown): string {
 const server = new FastMCP({
   name: "hawk",
   version: "0.3.0",
+  instructions:
+    "Authenticate only by calling the Hawk login tool with the user's email and password. " +
+    "Do not open a browser or ask the user to sign in on hawk.so: browser cookies and UI sessions are not connected to this MCP process and cannot populate its token store. " +
+    "If session_status returns requiresLogin=true, request fresh credentials and call login. Never store or repeat credentials outside the login tool call.",
   authenticate:
     MCP_TRANSPORT === "httpStream"
       ? async (request) => {
@@ -75,7 +79,7 @@ const server = new FastMCP({
 server.addTool({
   name: "login",
   description:
-    "Log in to Hawk and persist tokens in local JSON protected by filesystem permissions. Tokens are never returned.",
+    "Supported Hawk authentication method. Pass the user's Hawk email and password; tokens are persisted locally and never returned. Do not use browser login because Hawk web cookies are not shared with this MCP process.",
   parameters: z.object({
     email: z.string().email(),
     password: z.string().min(1),
@@ -154,7 +158,8 @@ server.addTool({
         apiUrl: HAWK_API_URL,
         sessionStorePath: SESSION_STORE_PATH,
         error: formatUnknownError(error),
-        note: "Authentication failures may remove an invalid refresh token; connectivity or server errors leave it stored.",
+        note:
+          "If requiresLogin is true, call login with the user's Hawk email and password. Browser login does not update this MCP session. Connectivity or server errors leave the stored tokens untouched.",
       });
     }
   },
