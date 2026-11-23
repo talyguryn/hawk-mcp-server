@@ -40,6 +40,9 @@ export function isRefreshableAuthenticationError(error: unknown): boolean {
       message.includes("jwt") ||
       message.includes("token expired") ||
       message.includes("access token expired") ||
+      message.includes("need to refresh") ||
+      message.includes("needs to refresh") ||
+      message.includes("need refresh") ||
       message.includes("refresh your token") ||
       message.includes("refresh your tokens") ||
       message.includes("tokens have expired") ||
@@ -164,10 +167,22 @@ export function createAuthenticatedRequester(sessionStore: SessionStore) {
       try {
         const refreshedTokens = await refreshSession(session);
 
-        return createClient(refreshedTokens.accessToken).request<T>(
-          document,
-          variables,
-        );
+        try {
+          return await createClient(refreshedTokens.accessToken).request<T>(
+            document,
+            variables,
+          );
+        } catch (retriedError) {
+          if (isRefreshableAuthenticationError(retriedError)) {
+            await sessionStore.clear();
+
+            throw new ReauthenticationRequiredError(
+              "Hawk rejected the refreshed session. Ask the user for their Hawk email and password and call the login tool. Do not use browser login.",
+            );
+          }
+
+          throw retriedError;
+        }
       } catch (refreshError) {
         if (isInvalidRefreshTokenError(refreshError)) {
           await sessionStore.clear();

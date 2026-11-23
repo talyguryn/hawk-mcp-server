@@ -53,11 +53,12 @@ function json(value: unknown): string {
 
 const server = new FastMCP({
   name: "hawk",
-  version: "0.3.0",
+  version: "0.4.0",
   instructions:
     "Authenticate only by calling the Hawk login tool with the user's email and password. " +
     "Do not open a browser or ask the user to sign in on hawk.so: browser cookies and UI sessions are not connected to this MCP process and cannot populate its token store. " +
-    "If session_status returns requiresLogin=true, request fresh credentials and call login. Never store or repeat credentials outside the login tool call.",
+    "Call session_status before using Hawk data tools, and stop that workflow if authenticated is false. " +
+    "If session_status returns requiresLogin=true or action=call_login, ask for fresh credentials and call login. If action=retry_later, do not ask for credentials. Never store or repeat credentials outside the login tool call.",
   authenticate:
     MCP_TRANSPORT === "httpStream"
       ? async (request) => {
@@ -120,6 +121,7 @@ server.addTool({
         authenticated: false,
         sessionStored: false,
         requiresLogin: true,
+        action: "call_login",
         apiUrl: HAWK_API_URL,
         sessionStorePath: SESSION_STORE_PATH,
         message: "No saved Hawk session. Run the login tool.",
@@ -137,29 +139,35 @@ server.addTool({
         `,
       );
 
+      const authenticated = result.me !== null;
+
       return json({
-        authenticated: result.me !== null,
+        authenticated,
         sessionStored: true,
+        requiresLogin: !authenticated,
+        action: authenticated ? "continue" : "call_login",
         apiUrl: HAWK_API_URL,
         sessionStorePath: SESSION_STORE_PATH,
         message:
-          result.me !== null
+          authenticated
             ? "Hawk session is valid."
             : "Hawk did not resolve the authenticated user.",
       });
     } catch (error) {
       const sessionStored = await sessionStore.hasSession();
+      const requiresLogin =
+        !sessionStored || error instanceof ReauthenticationRequiredError;
 
       return json({
         authenticated: false,
         sessionStored,
-        requiresLogin:
-          !sessionStored || error instanceof ReauthenticationRequiredError,
+        requiresLogin,
+        action: requiresLogin ? "call_login" : "retry_later",
         apiUrl: HAWK_API_URL,
         sessionStorePath: SESSION_STORE_PATH,
         error: formatUnknownError(error),
         note:
-          "If requiresLogin is true, call login with the user's Hawk email and password. Browser login does not update this MCP session. Connectivity or server errors leave the stored tokens untouched.",
+          "If action is call_login, ask for the user's Hawk email and password and stop before any other Hawk tool. Browser login does not update this MCP session. If action is retry_later, do not ask for credentials and retry the same operation later.",
       });
     }
   },

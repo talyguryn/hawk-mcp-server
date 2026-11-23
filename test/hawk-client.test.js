@@ -44,6 +44,24 @@ test("recognizes GraphQL UNAUTHENTICATED code", () => {
   assert.equal(isRefreshableAuthenticationError(error), true);
 });
 
+test("recognizes alternative Hawk refresh wording", () => {
+  const error = new ClientError(
+    {
+      status: 200,
+      errors: [
+        {
+          message: "You need to refresh tokens",
+        },
+      ],
+    },
+    {
+      query: "query Test { me { id } }",
+    },
+  );
+
+  assert.equal(isRefreshableAuthenticationError(error), true);
+});
+
 test("does not refresh arbitrary authorization failures", () => {
   const error = new ClientError(
     {

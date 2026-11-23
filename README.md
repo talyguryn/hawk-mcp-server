@@ -214,18 +214,25 @@ Do not expose it to mutually untrusted users.
 ## Authentication troubleshooting
 
 Use only the MCP `login` tool with the user's Hawk email and password.
-`session_status` first verifies the saved session and attempts token refresh.
-Its relevant outcomes are:
+Before any sequence of Hawk tool calls, run `session_status` and inspect its
+`action`. The tool verifies the saved session with a real `me` request and
+attempts token refresh when needed. Its relevant outcomes are:
 
-| Result | Action |
+| `action` | Result and required client behavior |
 | --- | --- |
-| `authenticated: true` | Continue using Hawk tools |
-| `authenticated: false`, `requiresLogin: true` | Ask for Hawk email/password and call `login` |
-| `authenticated: false`, `requiresLogin: false` | Retry later; this is usually an API/network failure, not a login request |
+| `continue` | `authenticated: true`; continue using Hawk tools |
+| `call_login` | Session cannot authenticate; ask for Hawk email/password and call `login` before any data tool |
+| `retry_later` | Temporary API/network failure; do not ask for credentials and retry later |
 
 Do not try to authenticate in a browser, copy website cookies, or manually copy
 tokens from DevTools. Browser and MCP sessions are separate, and these methods
 are intentionally unsupported.
+
+The Hawk password is intentionally not persisted. The server stores only the
+access/refresh token pair in the owner-only local session file and rotates it
+through Hawk's refresh API. Saving a password for unattended renewal would turn
+one refreshed credential into a permanent copy of the user's reusable login
+secret.
 
 Grouped searches support date, count, or affected-user sorting. State filters
 default to unresolved, non-ignored events. An empty page only means that there
